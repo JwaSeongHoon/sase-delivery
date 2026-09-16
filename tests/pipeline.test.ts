@@ -7,7 +7,12 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { parseFleet } from "@/lib/parse/fleet";
 import { parseShipment } from "@/lib/parse/shipment";
 import { runPipeline, type RunOutput } from "@/lib/pipeline/run";
-import { SECOND_TRIP_MIN_DEADLINE } from "@/lib/domain/constants";
+import {
+  LARGE_VEHICLE_TONNAGE,
+  METRO_SOUTH_LIMIT_LAT,
+  SECOND_TRIP_MIN_DEADLINE,
+} from "@/lib/domain/constants";
+import { siteKey } from "@/lib/structure/delivery-name";
 
 let out: RunOutput;
 let totalBoxes: number;
@@ -268,5 +273,75 @@ describe("지도 경로선 (FR-28)", () => {
         expect(lon).toBeLessThan(132);
       }
     }
+  });
+});
+
+describe("R-17 대형차 1업체 원칙 — 5톤 이상", () => {
+  const largeTrips = () =>
+    out.trips.filter((t) => {
+      const v = out.vehicles.find((x) => x.id === t.vehicleId);
+      return v ? v.tonnage >= LARGE_VEHICLE_TONNAGE : false;
+    });
+
+  it("대형차 회전에는 업체가 1곳뿐이거나, 2곳이면 주소가 거의 동일하다", () => {
+    for (const t of largeTrips()) {
+      if (t.stops.length <= 1) continue;
+      const sites = new Set(t.stops.map((s) => siteKey(s.address)));
+      expect(sites.size, `${t.기사명} ${t.tripNo}회전: ${t.stops.map((s) => s.company).join(", ")}`).toBe(1);
+    }
+  });
+
+  it("대형차에 적재 하한 미만의 소량 업체가 얹혀 실리지 않는다 — 원앤원 30박스 회귀", () => {
+    for (const t of largeTrips()) {
+      const v = out.vehicles.find((x) => x.id === t.vehicleId)!;
+      // 1업체 원칙이므로 회전 물량 = 그 업체 물량이고, 하한을 넘어야 한다
+      expect(t.boxes).toBeGreaterThanOrEqual(v.최소수량);
+    }
+    const 원앤원 = out.trips
+      .flatMap((t) => t.stops)
+      .find((s) => s.company === "원앤원");
+    expect(원앤원).toBeUndefined();
+  });
+
+  it("소형차(4톤 이하)에는 이 제약이 걸리지 않는다 — 3~5개사 묶음이 그대로 나온다", () => {
+    const small = out.trips.filter((t) => {
+      const v = out.vehicles.find((x) => x.id === t.vehicleId);
+      return v ? v.tonnage < LARGE_VEHICLE_TONNAGE : false;
+    });
+    expect(small.length).toBeGreaterThan(0);
+    expect(small.some((t) => t.stops.length >= 3)).toBe(true);
+  });
+
+  it("R-17 위반이 검증에서 잡히지 않는다", () => {
+    expect(out.violations.filter((v) => v.code === "R-17")).toHaveLength(0);
+  });
+});
+
+describe("R-18 수도권 우선 — 천안 이남은 후순위", () => {
+  it("천안 이남 배송지가 실린 회전은 남쪽 물량이 회전 전체를 채우는 대형 건뿐이다", () => {
+    // 북쪽 대안이 있는 소형차 회전에 남쪽을 끼워 넣지 않았는지 본다
+    for (const t of out.trips) {
+      const south = t.stops.filter((s) => s.geo && s.geo.lat < METRO_SOUTH_LIMIT_LAT);
+      if (south.length === 0) continue;
+      expect(
+        t.stops.length,
+        `${t.기사명} ${t.tripNo}회전에 남쪽 ${south.map((s) => s.company).join(",")}이 섞였다`
+      ).toBe(south.length);
+    }
+  });
+
+  it("남쪽 배차가 있으면 정보 이슈로 남긴다", () => {
+    const south = out.trips
+      .flatMap((t) => t.stops)
+      .filter((s) => s.geo && s.geo.lat < METRO_SOUTH_LIMIT_LAT);
+    const issue = out.issues.find((i) => i.code === "R-18");
+    if (south.length > 0) {
+      expect(issue).toBeDefined();
+      expect(issue!.level).toBe("info");
+    }
+  });
+
+  it("천안 이남은 위반이 아니다 — 제약 위반으로 집계되지 않는다", () => {
+    expect(out.violations.filter((v) => v.code === "R-18")).toHaveLength(0);
   });
 });

@@ -313,7 +313,7 @@ function buildSummarySheet(wb: ExcelJS.Workbook, input: ExportInput): void {
   line("출고일자", formatDate(input.date));
   line("생성 시각", new Date(input.generatedAt).toLocaleString("ko-KR"));
   line("실행 모드", input.demoMode ? "Demo Mode (TMAP 미호출)" : "운영 (TMAP 호출)");
-  line("적용 규칙 버전", "PRD v1.0 / R-01~R-14");
+  line("적용 규칙 버전", "PRD v1.0 / R-01~R-18");
   ws.addRow({});
 
   if (input.sourceSummary) {

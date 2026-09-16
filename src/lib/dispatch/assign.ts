@@ -19,8 +19,11 @@
 import {
   DEFAULT_DEPART_MINUTES,
   EARLY_DELIVERY_RULES,
+  LARGE_VEHICLE_TONNAGE,
+  METRO_SOUTH_LIMIT_LAT,
   RELOAD_MINUTES,
   SECOND_TRIP_MIN_DEADLINE,
+  SOUTH_PENALTY_WEIGHT,
   type EarlyDeliveryMode,
 } from "@/lib/domain/constants";
 import type {
@@ -32,6 +35,7 @@ import type {
   UnassignedReason,
   Vehicle,
 } from "@/lib/domain/types";
+import { siteKey } from "@/lib/structure/delivery-name";
 import { earliestDeadline, latestDeadline, windowSpan } from "@/lib/structure/time-window";
 import { distKm } from "./distance";
 import { simulateTrip, type SimResult, type SimStop } from "./feasibility";
@@ -145,6 +149,26 @@ export function allowedOnSecondTrip(p: DeliveryPoint, minDeadline: Minutes): boo
   return deadline >= minDeadline;
 }
 
+/**
+ * 대형차인지 (R-17) — 5톤 이상은 회전당 1업체가 원칙이다.
+ * 2번째 업체는 첫 업체와 **주소가 거의 동일할 때만** 붙일 수 있다.
+ */
+export function isLargeVehicle(v: Pick<Vehicle, "tonnage">): boolean {
+  return v.tonnage >= LARGE_VEHICLE_TONNAGE;
+}
+
+/** 같은 장소인지 (R-17) — 층·도크·건물명을 뺀 주소가 같으면 같은 장소로 본다 */
+export function isSameSite(a: DeliveryPoint, b: DeliveryPoint): boolean {
+  const ka = siteKey(a.cleanAddress || a.address);
+  if (!ka) return false;
+  return ka === siteKey(b.cleanAddress || b.address);
+}
+
+/** 천안 이남인지 (R-18) — 좌표가 없으면 판정하지 않는다(북쪽 취급) */
+export function isSouthOfMetro(p: DeliveryPoint): boolean {
+  return p.geo ? p.geo.lat < METRO_SOUTH_LIMIT_LAT : false;
+}
+
 /** §6.1 배차 우선순위 — 시간창이 좁고 마감이 이른 배송지를 먼저 잡는다 */
 export function priorityOf(p: DeliveryPoint): number {
   const deadline = earliestDeadline(p.time.windows);
@@ -225,6 +249,7 @@ function growCluster(
   ctx: ClusterContext
 ): Cluster | null {
   const { vehicle } = ctx;
+  const large = isLargeVehicle(vehicle);
 
   if (seed.boxes > vehicle.최대수량) return null;
 
@@ -247,6 +272,12 @@ function growCluster(
       if (c.boxes > room) return false;
       if (ctx.earlySet.has(c.id) && (!ctx.allowEarly || earlyUsed >= 1)) return false;
       if (c.maxTonnage !== null && vehicle.tonnage > c.maxTonnage) return false;
+      /**
+       * R-17 — 대형차(5톤 이상)는 회전당 1업체가 원칙이다.
+       * 2번째 업체는 **이미 담긴 업체와 주소가 거의 동일할 때만** 허용한다.
+       * 이 줄이 없으면 30박스짜리가 1,000박스짜리에 얹혀 10톤 차로 나간다.
+       */
+      if (large && !chosen.every((x) => isSameSite(x, c))) return false;
       if (ctx.secondTripMinDeadline !== null && !allowedOnSecondTrip(c, ctx.secondTripMinDeadline))
         return false;
       // 같은 납품처의 다른 분할 조각은 한 회전에 같이 싣지 않는다
@@ -255,6 +286,13 @@ function growCluster(
     });
 
     if (feasible.length === 0) break;
+
+    /**
+     * R-18 — 수도권 우선. 북쪽 후보가 하나라도 있으면 남쪽은 쳐다보지 않는다.
+     * 북쪽이 다 떨어졌을 때만 남쪽을 붙인다 (금지가 아니라 후순위).
+     */
+    const northOnly = feasible.filter((c) => !isSouthOfMetro(c));
+    const pickable = northOnly.length > 0 ? northOnly : feasible;
 
     /**
      * 거리만 보고 붙이면 적재 하한을 못 채운 채 업체 수 상한에 먼저 닿는다.
@@ -269,7 +307,7 @@ function growCluster(
           : boxesNeeded
         : null;
 
-    const byDistance = [...feasible].sort(
+    const byDistance = [...pickable].sort(
       (a, b) =>
         Math.min(...chosen.map((x) => distKm(x.geo!, a.geo!))) -
         Math.min(...chosen.map((x) => distKm(x.geo!, b.geo!)))
@@ -278,11 +316,11 @@ function growCluster(
 
     let ranked = byDistance;
     if (target !== null) {
-      const byFit = [...feasible].sort(
+      const byFit = [...pickable].sort(
         (a, b) => Math.abs(a.boxes - target) - Math.abs(b.boxes - target)
       );
       const fitRank = new Map(byFit.map((c, i) => [c.id, i]));
-      ranked = [...feasible].sort(
+      ranked = [...pickable].sort(
         (a, b) =>
           distanceRank.get(a.id)! + fitRank.get(a.id)! - (distanceRank.get(b.id)! + fitRank.get(b.id)!)
       );
@@ -329,6 +367,8 @@ function growCluster(
  * 1순위는 **적재율**이다. 박스당 주행거리만 보면 10톤 차량이 1,200박스짜리 대형 물량 대신
  * 가까운 소형 묶음(530박스)을 집는다. 소화하지 못한 물량은 그대로 용차 비용이 되므로,
  * 미적재 용량을 가장 무겁게 벌점 매긴다.
+ * 여기에 **천안 이남 물량 비중**(R-18)을 같은 스케일로 얹는다 — 북쪽 대안이 있으면 북쪽을
+ * 고르고, 대안이 없을 때만 남쪽을 싣는다.
  * 2순위는 박스당 주행거리와 공차 귀가 거리(G3), 3순위는 마감 임박 배송지 포함 여부(§6.1).
  */
 function scoreCluster(
@@ -340,7 +380,14 @@ function scoreCluster(
   const idleCapacity = capacity > 0 ? 1 - boxes / capacity : 1;
   const distanceCost = (sim.driveKm + 1.5 * sim.homeKm) / Math.max(1, boxes);
   const priorityBonus = points.reduce((s, p) => s + priorityOf(p), 0);
-  return idleCapacity + 0.5 * distanceCost - 0.05 * priorityBonus;
+  const southBoxes = points.filter(isSouthOfMetro).reduce((s, p) => s + p.boxes, 0);
+  const southRatio = boxes > 0 ? southBoxes / boxes : 0;
+  return (
+    idleCapacity +
+    SOUTH_PENALTY_WEIGHT * southRatio +
+    0.5 * distanceCost -
+    0.05 * priorityBonus
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -426,9 +473,18 @@ export function assignDispatch(
     };
 
     // 후보 필터 — 하드 제약을 통과하는 것만
+    const large = isLargeVehicle(vehicle);
     const candidates = pool.filter((p) => {
       if (p.boxes > vehicle.최대수량) return false;
       if (p.maxTonnage !== null && vehicle.tonnage > p.maxTonnage) return false;
+      /**
+       * R-17 + R-03 — 대형차는 1업체가 원칙이므로, 같은 장소에 짝이 없는 소량 업체는
+       * 단독으로 적재 하한을 못 채운다. 조합 탐색에 넣어 봐야 전부 버려지므로 미리 뺀다.
+       */
+      if (large && p.boxes < vehicle.최소수량) {
+        const pair = pool.some((q) => q.id !== p.id && isSameSite(p, q));
+        if (!pair) return false;
+      }
       if (earlySet.has(p.id) && !allowEarly) return false;
       if (deadlineFloor !== null && !allowedOnSecondTrip(p, deadlineFloor)) return false;
       return true;
@@ -469,6 +525,28 @@ export function assignDispatch(
     if (!slot.isFinalTrip) {
       nextDepart.set(vehicle.id, bestCluster.sim.endAt + RELOAD_MINUTES);
     }
+  }
+
+  /**
+   * R-18 — 천안 이남 배차는 위반이 아니라 후순위다. 몇 박스가 남쪽으로 나갔는지
+   * 담당자가 보고 판단할 수 있게 정보로 남긴다.
+   */
+  const southTrips = trips.filter((t) => t.points.some(isSouthOfMetro));
+  if (southTrips.length > 0) {
+    const southBoxes = trips
+      .flatMap((t) => t.points)
+      .filter(isSouthOfMetro)
+      .reduce((s, p) => s + p.boxes, 0);
+    issues.push({
+      level: "info",
+      code: "R-18",
+      message: `천안 이남 배차 ${southTrips.length}회전 · ${southBoxes.toLocaleString()}박스 — 수도권 물량을 먼저 태우고 남은 회전에 배정했습니다`,
+      detail: trips
+        .flatMap((t) => t.points)
+        .filter(isSouthOfMetro)
+        .map((p) => `${p.parsedName.company}(${p.parsedName.region})`)
+        .join(", "),
+    });
   }
 
   // ── 3. 미배차 사유 진단 (FR-43)
@@ -580,24 +658,39 @@ function diagnose(
   }
 
   /**
-   * 남은 두 사유를 가르는 기준
-   *  - 업체수상한 : 적재 공간은 남았는데 그 회전이 최대업체수에 닿아 못 실은 경우
-   *  - 회전초과   : 그런 회전조차 없는 경우 — 가용 회전 자체가 소진됐다
+   * 남은 사유를 가르는 기준은 **어떤 회전이 비어 있는가**다.
+   * "차는 놀고 있는데 왜 못 실었나"에 답하지 못하면 담당자는 결과를 믿지 않는다.
    */
+  const usedSlots = new Set(trips.map((t) => `${t.vehicle.id}#${t.tripNo}`));
+  const idleSlots: { vehicle: Vehicle; tripNo: number }[] = [];
+  for (const v of vehicles) {
+    for (let t = 1; t <= v.회전수; t++) {
+      if (!usedSlots.has(`${v.id}#${t}`)) idleSlots.push({ vehicle: v, tripNo: t });
+    }
+  }
+  /** 적재 상한·톤수 제약만 보면 이 업체를 받을 수 있었던 빈 회전 */
+  const fitIdle = idleSlots.filter(
+    (s) =>
+      p.boxes <= s.vehicle.최대수량 &&
+      (p.maxTonnage === null || s.vehicle.tonnage <= p.maxTonnage)
+  );
+
+  /** 업체수상한 — 적재 공간은 남았는데 그 회전이 최대업체수에 닿아 못 실은 경우 */
   const blockedByCompanyCap = trips.some((t) => {
     if (t.points.length < t.vehicle.최대업체수) return false;
     if (t.boxes + p.boxes > t.vehicle.최대수량) return false;
     if (p.maxTonnage !== null && t.vehicle.tonnage > p.maxTonnage) return false;
     if (t.tripNo > 1 && !allowedOnSecondTrip(p, ctx.secondTripMinDeadline)) return false;
+    if (isLargeVehicle(t.vehicle)) return false; // R-17 — 대형차에는 얹을 수 없다
     return true;
   });
 
-  // R-15로 2회전 후보에서 빠졌고, 1회전은 모두 찬 경우를 구분해 알린다
-  if (!blockedByCompanyCap && !allowedOnSecondTrip(p, ctx.secondTripMinDeadline)) {
-    const openSecondTrip = trips.some(
-      (t) => t.tripNo > 1 && t.points.length < t.vehicle.최대업체수
-    );
-    if (openSecondTrip) {
+  if (!blockedByCompanyCap && fitIdle.length > 0) {
+    // R-15 — 빈 회전이 전부 2회전 이상인데 마감이 하한보다 이르다
+    if (
+      fitIdle.every((s) => s.tripNo > 1) &&
+      !allowedOnSecondTrip(p, ctx.secondTripMinDeadline)
+    ) {
       const floor = `${String(Math.floor(ctx.secondTripMinDeadline / 60)).padStart(2, "0")}:${String(
         ctx.secondTripMinDeadline % 60
       ).padStart(2, "0")}`;
@@ -605,6 +698,22 @@ function diagnose(
         ...base,
         reason: "시간창불가",
         note: `마감이 ${floor}보다 일러 2회전(센터 복귀 후 재출발)에 배정할 수 없고, 1회전은 모두 찼습니다${splitNote}`,
+      };
+    }
+
+    /**
+     * R-17 — 빈 회전이 전부 대형차인데 단독으로 적재 하한을 못 채운다.
+     * 대형차는 1업체가 원칙이라 소량을 다른 업체에 얹어 채울 수 없다.
+     */
+    if (fitIdle.every((s) => isLargeVehicle(s.vehicle) && p.boxes < s.vehicle.최소수량)) {
+      const floor = Math.min(...fitIdle.map((s) => s.vehicle.최소수량));
+      return {
+        ...base,
+        reason: "대형차단독",
+        note:
+          `남은 회전이 대형차뿐입니다. 대형차는 회전당 1업체가 원칙이라 ` +
+          `적재 하한 ${floor.toLocaleString()}박스에 못 미치는 ${p.boxes.toLocaleString()}박스를 ` +
+          `단독으로 실을 수 없습니다 (R-17)${splitNote}`,
       };
     }
   }

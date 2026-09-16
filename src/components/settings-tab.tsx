@@ -21,6 +21,8 @@ import { Switch } from "@/components/ui/switch";
 import {
   CENTER,
   EARLY_DELIVERY_RULES,
+  LARGE_VEHICLE_TONNAGE,
+  METRO_SOUTH_LIMIT_LAT,
   OPTIMIZE_SAFE_CAP,
   SECOND_TRIP_MIN_DEADLINE,
 } from "@/lib/domain/constants";
@@ -170,6 +172,50 @@ export function SettingsTab() {
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 담당자가 바꾸는 설정이 아니라 확정된 업무 규칙이므로 화면에서 변경할 수 없습니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>대형차 1업체 원칙 (R-17)</Label>
+            <div className="rounded-md border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                {LARGE_VEHICLE_TONNAGE}톤 이상은 회전당 1업체
+                <Badge variant="secondary" className="text-[10px]">
+                  확정 규칙
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                2번째 업체는 첫 업체와 <strong>주소가 거의 동일할 때만</strong> 붙습니다
+                (층·도크·건물명을 뺀 도로명/지번이 같을 때). 차량 마스터의 「최대업체수 2」는
+                <em> 같은 건물에 업체가 둘일 때의 상한</em>이지 아무 두 곳이나 묶어도 된다는 뜻이
+                아닙니다.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                적재 하한(R-03)과 맞물려 <strong>하한 미만의 소량 업체는 대형차에 배차되지
+                않습니다</strong> — 10톤 차(하한 500박스)에 30박스짜리가 얹히던 문제를 막습니다.
+                실을 회전이 없으면 사유 「대형차단독」으로 기타에 남습니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>수도권 우선 배차 (R-18)</Label>
+            <div className="rounded-md border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                천안 이남(위도 {METRO_SOUTH_LIMIT_LAT})은 후순위
+                <Badge variant="secondary" className="text-[10px]">
+                  확정 규칙
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <strong>금지가 아니라 후순위</strong>입니다. 수도권 물량을 먼저 태우고, 그래도 회전이
+                남으면 남쪽을 싣습니다. 천안 이남 배차는 제약 위반이 아니라 <strong>정보 이슈</strong>로
+                남으므로 「제약 위반」 건수에는 잡히지 않습니다.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                2026-09-15 실데이터에서 남쪽은 천안·아산·청주·익산 4곳입니다. 대형차가 단독으로 실을 수
+                있는 500박스 이상 업체가 청주·익산뿐이라, 이 데이터에서는 대형차 배차가 바뀌지 않습니다.
               </p>
             </div>
           </div>

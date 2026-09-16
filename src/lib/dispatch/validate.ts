@@ -12,6 +12,8 @@ import {
   type EarlyDeliveryMode,
 } from "@/lib/domain/constants";
 import type { DispatchResult, Issue, Trip, Vehicle } from "@/lib/domain/types";
+import { isLargeVehicle } from "@/lib/dispatch/assign";
+import { siteKey } from "@/lib/structure/delivery-name";
 import { formatWindows, isWithin, latestDeadline, toHHMM } from "@/lib/structure/time-window";
 
 export interface ValidateInput {
@@ -84,6 +86,23 @@ export function validateDispatch(input: ValidateInput): Issue[] {
           code: "R-05",
           message: `업체 수 하한 미달 — ${trip.stops.length} < ${v.최소업체수}`,
           subject: label,
+        });
+      }
+    }
+
+    /**
+     * R-17 — 대형차(5톤 이상)는 회전당 1업체가 원칙이다.
+     * 2번째 업체는 주소가 거의 동일할 때만 허용한다.
+     */
+    if (isLargeVehicle(v) && trip.stops.length > 1) {
+      const sites = new Set(trip.stops.map((st) => siteKey(st.address)));
+      if (sites.size > 1) {
+        violations.push({
+          level: "error",
+          code: "R-17",
+          message: `대형차 1업체 원칙 위반 — 주소가 다른 업체 ${trip.stops.length}곳 배정`,
+          subject: label,
+          detail: trip.stops.map((st) => `${st.company}(${st.address})`).join(" / "),
         });
       }
     }
