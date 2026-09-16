@@ -121,6 +121,17 @@ DB·ORM·파일 저장소가 없고, `localStorage`/`sessionStorage`/IndexedDB�
 납니다. 네임스페이스가 비동기로 채워지므로 `isTmapReady`로 **필요한 생성자가 전부 함수인지**
 확인해야 합니다.
 
+**jsv2는 `document.write`로 본체를 끌어옵니다** — `apis.openapi.sk.com/tmap/jsv2`가 주는 건
+1KB짜리 부트스트랩이고, 실제 SDK(`tmapjs2.min.js`)는 그 안에서 `document.write`로 붙습니다.
+문서 파싱이 끝난 뒤 동적으로 추가한 스크립트의 `document.write`는 브라우저가 무시하므로
+(`Failed to execute 'write' on 'Document'`), 그냥 `<script>`를 붙이면 `_getScriptLocation`만
+올라온 채 영영 준비되지 않습니다. `tmap-sdk.ts`가 `document.write`를 잠깐 가로채 본체를 직접
+붙입니다. **부트스트랩 `<script>` 태그는 지우지 마십시오** — SDK가 문서의 모든 `<script src>`를
+훑어 `appKey=`를 뽑아 씁니다.
+
+**지도 `httpsMode: true`** — jsv2 타일 기본 프로토콜이 http라 HTTPS 배포에서 Mixed Content로
+전부 차단됩니다. `new Tmapv2.Map` 옵션에 반드시 넣으십시오(`map-view.tsx`).
+
 ## 미확정 사항 (OI)
 
 `docs/PRD.md` §14에 정리돼 있습니다. 확정된 것과 아닌 것을 섞지 마십시오.
@@ -136,6 +147,9 @@ OI-8 재상차 30분
 
 ## 검증되지 않은 부분
 
-**운영 TMAP 키로 실호출한 적이 없습니다.** 전부 Demo Mode로 검증했습니다. 실키 전환 시
-지오코딩 응답 필드 분기(`newLat`/`lat`)와 `routeOptimization10`의 `B1` 순서가 문서대로인지
-확인이 필요합니다. jsv2 지도도 유효 키로 렌더된 것을 확인하지 못했습니다(폴백 경로만 검증).
+**TMAP REST API를 운영 키로 실호출한 적이 없습니다.** 배차는 전부 Demo Mode로 검증했습니다.
+실키 전환 시 지오코딩 응답 필드 분기(`newLat`/`lat`)와 `routeOptimization10`의 `B1` 순서가
+문서대로인지 확인이 필요합니다.
+
+jsv2 지도는 2026-09-16에 실제 웹 키로 렌더를 확인했습니다 — `npm run drive-ui`가
+타일·마커 장수를 검사합니다(마커 40개 / 타일 126장, 콘솔 오류 0건).

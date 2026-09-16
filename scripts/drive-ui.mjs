@@ -75,16 +75,50 @@ try {
   const assigned = /배차\s*\n?\s*([\d,]+)\s*박스/.exec(board);
   log(`배차 결과: ${assigned ? assigned[1] : "?"} 박스`);
   if (!board.includes("제약 위반")) throw new Error("제약 위반 지표 없음");
+
+  // ── 7. 지도 렌더 확인 — 웹 키가 있으면 jsv2 지도, 없거나 실패하면 SVG 폴백
+  const tmapMap = page.locator('div[aria-label="배차 지도 (TMAP)"]');
+  const svgMap = page.locator('svg[aria-label="배차 지도"]');
+  const usingTmap = (await tmapMap.count()) > 0;
+  let markerLocator;
+
+  if (usingTmap) {
+    // 부트스트랩 → 본체 → 네임스페이스까지 끝나야 오버레이가 걷힌다
+    await page.waitForSelector("text=TMAP 지도 SDK를 불러오는 중…", {
+      state: "detached",
+      timeout: 60000,
+    });
+    // 마커 아이콘은 data URI SVG, 배경 타일은 일반 img — 둘을 나눠서 센다
+    markerLocator = tmapMap.locator('img[src^="data:image/svg"]');
+    await markerLocator.first().waitFor({ timeout: 30000 });
+    // 타일이 다 그려지기 전에 찍으면 회색 배경(TMAP 워터마크)만 남는다
+    await page.waitForFunction(
+      () => {
+        const root = document.querySelector('div[aria-label="배차 지도 (TMAP)"]');
+        if (!root) return false;
+        const imgs = [...root.querySelectorAll('img:not([src^="data:"])')];
+        return imgs.length > 0 && imgs.every((i) => i.complete && i.naturalWidth > 0);
+      },
+      null,
+      { timeout: 30000 }
+    );
+    const markers = await markerLocator.count();
+    const tiles = await tmapMap.locator('img:not([src^="data:"])').count();
+    if (markers === 0) throw new Error("지도에 마커가 없음");
+    // 타일이 0장이면 키·도메인 제한이거나 httpsMode 누락(Mixed Content 차단)이다
+    if (tiles === 0) throw new Error("지도 타일이 한 장도 안 내려옴");
+    log(`TMAP jsv2 지도 렌더 OK — 마커 ${markers}개, 타일 ${tiles}장`);
+  } else {
+    markerLocator = svgMap.locator("circle");
+    const markers = await markerLocator.count();
+    const polylines = await svgMap.locator("polyline").count();
+    if (markers === 0) throw new Error("지도에 마커가 없음");
+    log(`SVG 폴백 지도 렌더 OK — 마커 ${markers}개, 경로선 ${polylines}개`);
+  }
   await page.screenshot({ path: `${OUT}/4-board.png`, fullPage: true });
 
-  // ── 7. 지도 렌더 확인
-  const markers = await page.locator('svg[aria-label="배차 지도"] circle').count();
-  const polylines = await page.locator('svg[aria-label="배차 지도"] polyline').count();
-  if (markers === 0) throw new Error("지도에 마커가 없음");
-  log(`지도 렌더 OK — 마커 ${markers}개, 경로선 ${polylines}개`);
-
   // ── 8. 회전 강조 (마커 클릭)
-  await page.locator('svg[aria-label="배차 지도"] circle').nth(1).click();
+  await markerLocator.nth(1).click();
   await page.waitForTimeout(300);
   const focusVisible = await page.getByRole("button", { name: "전체 보기" }).isVisible();
   log(`회전 강조 인터랙션 ${focusVisible ? "OK" : "미동작"}`);

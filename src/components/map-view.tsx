@@ -428,6 +428,8 @@ function TmapCanvas({
         zoom: 10,
         zoomControl: true,
         scrollwheel: true,
+        // 기본값이 http라 HTTPS 배포에서 타일이 Mixed Content로 전부 차단된다
+        httpsMode: true,
       });
     } catch (e) {
       // 지도 생성에 실패해도 배차 결과는 그대로 보여야 한다

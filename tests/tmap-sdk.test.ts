@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { isTmapReady } from "@/components/tmap-sdk";
+import { isTmapReady, scriptSrcsFromMarkup } from "@/components/tmap-sdk";
 
 const ctor = () => function Fake() {};
 
@@ -57,5 +57,43 @@ describe("isTmapReady", () => {
     expect(isTmapReady(null)).toBe(false);
     expect(isTmapReady(undefined)).toBe(false);
     expect(isTmapReady("Tmapv2")).toBe(false);
+  });
+});
+
+/**
+ * 실제 버그: jsv2 부트스트랩이 SDK 본체를 `document.write`로 끼워 넣는데,
+ * 문서 파싱이 끝난 뒤 동적으로 붙인 스크립트의 `document.write`는 브라우저가 무시한다.
+ * 그래서 본체가 영영 안 올라오고 지도는 늘 SVG 폴백으로 떨어졌다.
+ * 가로챈 마크업에서 본체 주소를 뽑아내는 부분을 고정한다.
+ */
+describe("scriptSrcsFromMarkup", () => {
+  it("부트스트랩이 실제로 쓰는 마크업에서 본체 주소를 뽑는다", () => {
+    // jsv2 부트스트랩이 만들어 내는 문자열 그대로 (작은따옴표 속성)
+    const written =
+      "<script src='https://topopentile1.tmap.co.kr/scriptSDKV2/tmapjs2.min.js?version=20231206'></script>";
+    expect(scriptSrcsFromMarkup(written)).toEqual([
+      "https://topopentile1.tmap.co.kr/scriptSDKV2/tmapjs2.min.js?version=20231206",
+    ]);
+  });
+
+  it("여러 개를 한 번에 써도 순서대로 뽑는다", () => {
+    const written =
+      "<script src='https://x/a.js'></script><script src=\"https://x/b.js\"></script>";
+    expect(scriptSrcsFromMarkup(written)).toEqual(["https://x/a.js", "https://x/b.js"]);
+  });
+
+  it("따옴표 없는 속성·대문자 태그도 읽는다", () => {
+    expect(scriptSrcsFromMarkup("<SCRIPT SRC=https://x/c.js></SCRIPT>")).toEqual([
+      "https://x/c.js",
+    ]);
+  });
+
+  it("src 없는 인라인 스크립트는 건너뛴다", () => {
+    expect(scriptSrcsFromMarkup("<script>var a=1;</script>")).toEqual([]);
+    expect(scriptSrcsFromMarkup("")).toEqual([]);
+  });
+
+  it("src처럼 생긴 다른 속성에 속지 않는다", () => {
+    expect(scriptSrcsFromMarkup("<script data-src='https://x/no.js'></script>")).toEqual([]);
   });
 });
