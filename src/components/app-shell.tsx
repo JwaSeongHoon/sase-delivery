@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { Database, Download, LayoutDashboard, Settings2, Upload } from "lucide-react";
+import { Download, LayoutDashboard, Settings2, Upload } from "lucide-react";
 
 import { BoardTab } from "@/components/board-tab";
 import { DownloadTab } from "@/components/download-tab";
+import { SaseLogo } from "@/components/sase-logo";
 import { SettingsTab } from "@/components/settings-tab";
 import { UploadTab } from "@/components/upload-tab";
 import { Badge } from "@/components/ui/badge";
@@ -38,15 +39,16 @@ export function AppShell() {
   }, [unsaved]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b bg-background/80 backdrop-blur">
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="sticky top-0 z-20 border-b bg-card/95 shadow-xs backdrop-blur">
+        {/* SASE Red 상단 띠 */}
+        <div className="h-1 bg-primary" />
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Database className="size-5" />
-            </div>
+          <div className="flex items-center gap-4">
+            <SaseLogo className="h-10" />
+            <div className="hidden h-9 w-px bg-border sm:block" />
             <div>
-              <h1 className="text-base font-semibold leading-tight">
+              <h1 className="text-lg font-bold leading-tight tracking-tight">
                 AI 기반 일일 배송 최적화 시스템
               </h1>
               <p className="text-xs text-muted-foreground">
@@ -58,9 +60,7 @@ export function AppShell() {
           <div className="flex flex-wrap items-center gap-2">
             {settings.demo && <Badge variant="secondary">Demo Mode</Badge>}
             {status && !status.tmapKeyPresent && (
-              <Badge variant="outline" className="border-amber-500/50 text-amber-600">
-                TMAP 키 미설정
-              </Badge>
+              <Badge variant="warning">TMAP 키 미설정</Badge>
             )}
             {status && status.usage.counts.optimize > 0 && (
               <Badge variant="outline" className="tabular-nums">
@@ -68,17 +68,17 @@ export function AppShell() {
               </Badge>
             )}
             {unsaved && (
-              <Badge variant="destructive">미다운로드 — 이탈 시 결과 소멸</Badge>
+              <Badge variant="brand">미다운로드 — 이탈 시 결과 소멸</Badge>
             )}
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1600px] px-4 py-6">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6">
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
           <TabsList className="mb-6">
             {TABS.map(({ key, label, icon: Icon }) => (
-              <TabsTrigger key={key} value={key} className="gap-1.5">
+              <TabsTrigger key={key} value={key} className="h-10 gap-2 px-4 text-[0.95rem]">
                 <Icon className="size-4" />
                 {label}
                 {key === "board" && result && (
@@ -105,7 +105,7 @@ export function AppShell() {
         </Tabs>
       </main>
 
-      <footer className="border-t py-4">
+      <footer className="border-t bg-card py-4">
         <p className="mx-auto max-w-[1600px] px-4 text-xs text-muted-foreground">
           업로드 데이터·좌표·경로는 서버와 브라우저 어디에도 저장되지 않습니다. 결과는 다운로드한
           엑셀이 유일한 산출물입니다. TMAP 경로 좌표의 24시간 초과 보관은 약관상 금지됩니다.

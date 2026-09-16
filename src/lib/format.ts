@@ -40,8 +40,8 @@ export function driverColor(vehicleIds: string[], vehicleId: string): string {
 }
 
 export function loadRateTone(rate: number): string {
-  if (rate >= 0.9) return "text-emerald-600 dark:text-emerald-400";
-  if (rate >= 0.7) return "text-sky-600 dark:text-sky-400";
-  if (rate >= 0.5) return "text-amber-600 dark:text-amber-400";
-  return "text-rose-600 dark:text-rose-400";
+  if (rate >= 0.9) return "text-success";
+  if (rate >= 0.7) return "text-info";
+  if (rate >= 0.5) return "text-warning";
+  return "text-destructive";
 }

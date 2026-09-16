@@ -41,8 +41,10 @@ export function BoardTab() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-          <Truck className="size-10 text-muted-foreground" />
-          <div className="text-lg font-medium">아직 배차 결과가 없습니다</div>
+          <div className="flex size-16 items-center justify-center rounded-full bg-accent">
+            <Truck className="size-8 text-primary" />
+          </div>
+          <div className="text-lg font-bold">아직 배차 결과가 없습니다</div>
           <p className="max-w-md text-sm text-muted-foreground">
             데이터 업로드 탭에서 출고등록현황과 차량_톤수 파일을 올린 뒤 배차를 실행하십시오.
           </p>
@@ -79,7 +81,7 @@ export function BoardTab() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Sparkles className="size-4 text-violet-500" /> AI 브리핑
+                  <Sparkles className="size-4 text-primary" /> AI 브리핑
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -129,12 +131,12 @@ export function BoardTab() {
                 <CardContent className="space-y-2">
                   {result.addressIssues.length === 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <CheckCircle2 className="size-4 text-emerald-600" />
+                      <CheckCircle2 className="size-4 text-success" />
                       모든 주소가 좌표로 변환되었습니다.
                     </div>
                   )}
                   {result.addressIssues.map((a) => (
-                    <div key={a.pointId} className="rounded-md border p-3 text-sm">
+                    <div key={a.pointId} className="rounded-lg border p-3 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{a.company}</span>
                         <Badge variant="outline" className="text-[10px]">
@@ -146,7 +148,7 @@ export function BoardTab() {
                         조회 · {a.queriedAddress}
                       </div>
                       {a.suggestion && (
-                        <div className="mt-1 text-xs text-sky-700 dark:text-sky-400">
+                        <div className="mt-1 text-xs text-info">
                           AI 제안 · {a.suggestion}
                         </div>
                       )}
@@ -159,14 +161,14 @@ export function BoardTab() {
 
             <TabsContent value="log">
               <Card>
-                <CardContent className="max-h-[420px] space-y-1.5 overflow-auto pt-6">
+                <CardContent className="max-h-[420px] space-y-1.5 overflow-auto">
                   {result.issues.map((i, idx) => (
                     <div
                       key={idx}
                       className={cn(
-                        "rounded-md border px-3 py-2 text-sm",
-                        i.level === "error" && "border-destructive/40 bg-destructive/5",
-                        i.level === "warning" && "border-amber-500/40 bg-amber-500/5"
+                        "rounded-lg border px-3 py-2 text-sm",
+                        i.level === "error" && "border-destructive/25 bg-accent",
+                        i.level === "warning" && "border-brand-yellow/50 bg-warning-soft"
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -190,7 +192,7 @@ export function BoardTab() {
         {/* 기사별 배차 티켓 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-muted-foreground">
+            <h3 className="text-sm font-bold text-foreground/80">
               기사별 배차 티켓 ({result.usedTrips}회전)
             </h3>
             {focusTripId && (
@@ -242,7 +244,7 @@ function SummaryBar({
 
   return (
     <Card>
-      <CardContent className="pt-6">
+      <CardContent>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
             <Stat label="출고일자" value={formatDate(result.date)} />
@@ -250,13 +252,13 @@ function SummaryBar({
               label="배차"
               value={`${n(result.assignedBoxes)} 박스`}
               sub={pct(result.assignedBoxes / Math.max(1, result.totalBoxes), 1)}
-              tone="text-emerald-600 dark:text-emerald-400"
+              tone="text-success"
             />
             <Stat
               label="기타"
               value={`${n(result.unassignedBoxes)} 박스`}
               sub={`${result.unassigned.length}건`}
-              tone="text-amber-600 dark:text-amber-400"
+              tone="text-warning"
             />
             <Stat
               label="사용 회전"
@@ -267,12 +269,12 @@ function SummaryBar({
             <Stat
               label="제약 위반"
               value={`${result.violations.length}건`}
-              tone={result.violations.length ? "text-destructive" : "text-emerald-600"}
+              tone={result.violations.length ? "text-destructive" : "text-success"}
             />
             <Stat
               label="시간 경고"
               value={`${timeWarnings}건`}
-              tone={timeWarnings ? "text-destructive" : "text-emerald-600"}
+              tone={timeWarnings ? "text-destructive" : "text-success"}
             />
           </div>
 
@@ -283,7 +285,7 @@ function SummaryBar({
             <div className="flex items-center gap-2 text-xs">
               {result.demoMode && <Badge variant="secondary">Demo Mode</Badge>}
               {result.aiEnabled && (
-                <Badge variant="secondary" className="gap-1">
+                <Badge variant="brand" className="gap-1">
                   <Sparkles className="size-3" /> AI 구조화
                 </Badge>
               )}
@@ -292,7 +294,7 @@ function SummaryBar({
               </span>
             </div>
             {!downloaded && (
-              <p className="max-w-xs text-right text-[11px] text-amber-600 dark:text-amber-400">
+              <p className="max-w-xs text-right text-[11px] text-warning">
                 다운로드 전에 페이지를 벗어나면 결과가 사라집니다 (무저장 구조)
               </p>
             )}
@@ -317,7 +319,7 @@ function Stat({
   return (
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("text-lg font-semibold tabular-nums", tone)}>{value}</div>
+      <div className={cn("text-xl font-bold tracking-tight tabular-nums", tone)}>{value}</div>
       {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
     </div>
   );
@@ -341,8 +343,8 @@ function TripTicket({
   return (
     <Card
       className={cn(
-        "cursor-pointer transition-shadow hover:shadow-md",
-        active && "ring-2 ring-offset-1"
+        "cursor-pointer transition-shadow hover:shadow-card-hover",
+        active && "ring-2"
       )}
       style={active ? { boxShadow: `0 0 0 2px ${color}` } : undefined}
       onClick={onToggle}
@@ -359,7 +361,7 @@ function TripTicket({
             </div>
           </div>
           <div className="text-right">
-            <div className="text-lg font-semibold tabular-nums">{n(trip.boxes)}</div>
+            <div className="text-lg font-bold tabular-nums">{n(trip.boxes)}</div>
             <div className={cn("text-xs font-medium", loadRateTone(trip.loadRate))}>
               적재율 {pct(trip.loadRate)}
             </div>
@@ -375,7 +377,7 @@ function TripTicket({
 
       <CardContent className="space-y-2 pb-4">
         {trip.stops.map((s) => (
-          <div key={s.pointId} className="rounded-md border px-2.5 py-2">
+          <div key={s.pointId} className="rounded-lg border px-2.5 py-2">
             <div className="flex items-start justify-between gap-2">
               <div className="flex min-w-0 items-start gap-2">
                 <span
@@ -467,7 +469,7 @@ function UnassignedPanel({
     return (
       <Card>
         <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-          <CheckCircle2 className="size-4 text-emerald-600" /> 전량 배차되었습니다.
+          <CheckCircle2 className="size-4 text-success" /> 전량 배차되었습니다.
         </CardContent>
       </Card>
     );
@@ -484,16 +486,16 @@ function UnassignedPanel({
       </CardHeader>
       <CardContent className="space-y-3">
         {byRegion.map(({ region, list, boxes }) => (
-          <div key={region} className="rounded-md border">
-            <div className="flex items-center justify-between border-b bg-muted/40 px-3 py-2">
+          <div key={region} className="overflow-hidden rounded-xl border">
+            <div className="flex items-center justify-between border-b bg-muted/60 px-3 py-2">
               <div className="flex items-center gap-2">
-                <Package className="size-3.5 text-muted-foreground" />
-                <span className="text-sm font-semibold">{region}</span>
+                <Package className="size-3.5 text-primary" />
+                <span className="text-sm font-bold">{region}</span>
                 <Badge variant="secondary" className="text-[10px]">
                   {list.length}개사
                 </Badge>
               </div>
-              <span className="text-sm font-semibold tabular-nums">{n(boxes)} 박스</span>
+              <span className="text-sm font-bold tabular-nums">{n(boxes)} 박스</span>
             </div>
             <div className="divide-y">
               {list.map((u) => (

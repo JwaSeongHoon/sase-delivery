@@ -72,7 +72,12 @@ export function UploadTab() {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={() => void parseFiles()} disabled={!ready || parsing} size="lg">
+        <Button
+          onClick={() => void parseFiles()}
+          disabled={!ready || parsing}
+          size="lg"
+          variant={preview ? "outline" : "default"}
+        >
           {parsing ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
           파일 검증 · 미리보기
         </Button>
@@ -82,8 +87,6 @@ export function UploadTab() {
             onClick={() => void runDispatch()}
             disabled={dispatching}
             size="lg"
-            variant="default"
-            className="bg-emerald-600 hover:bg-emerald-700"
           >
             {dispatching ? <Loader2 className="animate-spin" /> : <Play />}
             배차 실행 {settings.demo && "(Demo Mode)"}
@@ -140,8 +143,8 @@ function DropZone({
     <Card
       className={cn(
         "transition-colors",
-        over && "border-primary bg-primary/5",
-        file && "border-emerald-500/60"
+        over && "bg-accent ring-2 ring-primary",
+        file && "ring-success/40"
       )}
       onDragOver={(e) => {
         e.preventDefault();
@@ -157,9 +160,9 @@ function DropZone({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           {file ? (
-            <CheckCircle2 className="size-4 text-emerald-600" />
+            <CheckCircle2 className="size-4 text-success" />
           ) : (
-            <Upload className="size-4 text-muted-foreground" />
+            <Upload className="size-4 text-primary" />
           )}
           {title}
         </CardTitle>
@@ -167,9 +170,9 @@ function DropZone({
       </CardHeader>
       <CardContent>
         {file ? (
-          <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
+          <div className="flex items-center justify-between gap-2 rounded-xl border bg-success-soft px-3 py-2">
             <div className="min-w-0">
-              <div className="truncate text-sm font-medium">{file.name}</div>
+              <div className="truncate text-sm font-semibold">{file.name}</div>
               <div className="text-xs text-muted-foreground">
                 {(file.size / 1024).toFixed(0)} KB
               </div>
@@ -181,7 +184,7 @@ function DropZone({
         ) : (
           <label
             htmlFor={inputId}
-            className="flex h-20 cursor-pointer items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground hover:bg-accent/50"
+            className="flex h-20 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-input text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-accent hover:text-accent-foreground"
           >
             드래그하거나 클릭해서 선택
           </label>
@@ -245,8 +248,8 @@ function PreviewPanel({ preview }: { preview: ParseResponse }) {
 
       {/* FR-08 구조적 미배차 사전 경고 */}
       {w.structuralShortfall > 0 && (
-        <Alert>
-          <AlertTriangle className="text-amber-600" />
+        <Alert variant="warning">
+          <AlertTriangle />
           <AlertTitle>구조적 미배차 최소 {w.structuralShortfall}곳</AlertTitle>
           <AlertDescription>
             납품처 {preview.pointCount}곳이 회전당 업체 수 상한 합계 {preview.capacity.maxCompanies}
@@ -337,14 +340,14 @@ function PreviewPanel({ preview }: { preview: ParseResponse }) {
               tone={conflicts.length ? "warn" : "ok"}
             >
               {conflicts.map((p) => (
-                <div key={p.id} className="rounded-md border p-3 text-sm">
+                <div key={p.id} className="rounded-lg border p-3 text-sm">
                   <div className="font-medium">{p.company}</div>
                   <div className="mt-1 grid gap-0.5 text-xs text-muted-foreground">
                     <div>원문 · {p.conditionText || "(없음)"}</div>
                     <div>컬럼 · {p.columnRaw ?? "(비어있음)"}</div>
                     <div className="text-foreground">채택 · {p.windowsText}</div>
                   </div>
-                  <div className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">{p.note}</div>
+                  <div className="mt-1.5 text-xs text-warning">{p.note}</div>
                 </div>
               ))}
             </ReviewCard>
@@ -356,7 +359,7 @@ function PreviewPanel({ preview }: { preview: ParseResponse }) {
               tone="info"
             >
               {preview.earlyCandidates.map((c) => (
-                <div key={c.company} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                <div key={c.company} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
                   <span className="font-medium">{c.company}</span>
                   <span className="text-xs text-muted-foreground">{c.windowsText}</span>
                 </div>
@@ -370,7 +373,7 @@ function PreviewPanel({ preview }: { preview: ParseResponse }) {
               tone="info"
             >
               {refines.map((p) => (
-                <div key={p.id} className="rounded-md border px-3 py-2 text-sm">
+                <div key={p.id} className="rounded-lg border px-3 py-2 text-sm">
                   <span className="font-medium">{p.company}</span>
                   <span className="ml-2 text-xs text-muted-foreground">{p.windowsText}</span>
                 </div>
@@ -384,7 +387,7 @@ function PreviewPanel({ preview }: { preview: ParseResponse }) {
               tone={errors.length ? "error" : "ok"}
             >
               {errors.map((i, idx) => (
-                <div key={idx} className="rounded-md border p-3 text-sm">
+                <div key={idx} className="rounded-lg border p-3 text-sm">
                   <div className="font-medium">
                     [{i.code}] {i.subject}
                   </div>
@@ -438,7 +441,7 @@ function PreviewPanel({ preview }: { preview: ParseResponse }) {
 
         <TabsContent value="issues">
           <Card>
-            <CardContent className="space-y-2 pt-6">
+            <CardContent className="space-y-2">
               {preview.issues.length === 0 && (
                 <div className="text-sm text-muted-foreground">검증 이슈가 없습니다.</div>
               )}
@@ -447,9 +450,9 @@ function PreviewPanel({ preview }: { preview: ParseResponse }) {
                   <div
                     key={idx}
                     className={cn(
-                      "rounded-md border p-3 text-sm",
-                      i.level === "error" && "border-destructive/40 bg-destructive/5",
-                      i.level === "warning" && "border-amber-500/40 bg-amber-500/5"
+                      "rounded-lg border p-3 text-sm",
+                      i.level === "error" && "border-destructive/25 bg-accent",
+                      i.level === "warning" && "border-brand-yellow/50 bg-warning-soft"
                     )}
                   >
                     <div className="flex items-center gap-2">
@@ -476,9 +479,9 @@ function PreviewPanel({ preview }: { preview: ParseResponse }) {
 function ConditionRow({ p }: { p: PreviewPoint }) {
   const tone =
     p.mismatch === "boundary" || p.mismatch === "missing"
-      ? "bg-amber-500/5"
+      ? "bg-warning-soft/70"
       : p.mismatch === "refine"
-        ? "bg-sky-500/5"
+        ? "bg-info-soft"
         : undefined;
 
   return (
@@ -515,9 +518,9 @@ function ConditionRow({ p }: { p: PreviewPoint }) {
 function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <Card>
-      <CardContent className="pt-5">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
+      <CardContent>
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        <div className="mt-1 text-2xl font-bold tracking-tight tabular-nums">{value}</div>
         {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
       </CardContent>
     </Card>
@@ -543,7 +546,7 @@ function ReviewCard({
         <CardTitle className="flex items-center gap-2 text-base">
           {title}
           <Badge
-            variant={tone === "error" ? "destructive" : tone === "warn" ? "default" : "secondary"}
+            variant={tone === "error" ? "destructive" : tone === "warn" ? "warning" : "secondary"}
           >
             {count}
           </Badge>
@@ -553,7 +556,7 @@ function ReviewCard({
       <CardContent className="max-h-80 space-y-2 overflow-auto">
         {count === 0 ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CheckCircle2 className="size-4 text-emerald-600" /> 해당 없음
+            <CheckCircle2 className="size-4 text-success" /> 해당 없음
           </div>
         ) : (
           children

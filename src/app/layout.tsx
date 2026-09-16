@@ -1,17 +1,13 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_KR, JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
+
+// SASE 디자인 시스템 서체. 한글 글립이 많아 unicode-range로 쪼갠 서브셋을 쓴다 —
+// 화면에 실제로 나온 글자 구간의 woff2만 내려받는다 (외부 CDN 없이 자체 서빙).
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
-
-/** 한글 글립을 갖춘 본문 폰트 — Geist에는 한글이 없어 배차표가 깨진다 */
-const sans = IBM_Plex_Sans_KR({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
 
 const mono = JetBrains_Mono({
   variable: "--font-mono",
@@ -27,7 +23,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko" className={`${sans.variable} ${mono.variable} h-full antialiased`}>
+    <html lang="ko" className={`${mono.variable} h-full antialiased`}>
       <body className="min-h-full">
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster position="top-center" />

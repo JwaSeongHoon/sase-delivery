@@ -49,8 +49,10 @@ export function DownloadTab() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-          <FileSpreadsheet className="size-10 text-muted-foreground" />
-          <div className="text-lg font-medium">다운로드할 결과가 없습니다</div>
+          <div className="flex size-16 items-center justify-center rounded-full bg-accent">
+            <FileSpreadsheet className="size-8 text-primary" />
+          </div>
+          <div className="text-lg font-bold">다운로드할 결과가 없습니다</div>
           <p className="max-w-md text-sm text-muted-foreground">
             배차를 먼저 실행하십시오. 결과는 서버에 저장되지 않으므로 실행할 때마다 새로 만들어집니다.
           </p>
@@ -62,16 +64,16 @@ export function DownloadTab() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {downloaded ? (
-        <Alert className="border-emerald-500/40 bg-emerald-500/5">
-          <CheckCircle2 className="text-emerald-600" />
+        <Alert variant="success">
+          <CheckCircle2 />
           <AlertTitle>다운로드 완료</AlertTitle>
           <AlertDescription>
             이 엑셀이 공식 산출물입니다. 이후 보관·공유·수정은 이 파일을 기준으로 하십시오.
           </AlertDescription>
         </Alert>
       ) : (
-        <Alert>
-          <AlertTriangle className="text-amber-600" />
+        <Alert variant="warning">
+          <AlertTriangle />
           <AlertTitle>아직 내려받지 않았습니다</AlertTitle>
           <AlertDescription>
             데이터베이스를 쓰지 않는 구조라, 다운로드 전에 페이지를 벗어나거나 새로고침하면
@@ -92,24 +94,24 @@ export function DownloadTab() {
         <CardContent className="space-y-5">
           <div className="space-y-2">
             {SHEETS.map((s, i) => (
-              <div key={s.name} className="flex gap-3 rounded-md border p-3">
-                <Badge variant="secondary" className="h-6 shrink-0">
+              <div key={s.name} className="flex gap-3 rounded-xl border p-3">
+                <Badge variant="brand" className="size-6 shrink-0 px-0">
                   {i + 1}
                 </Badge>
                 <div className="min-w-0">
-                  <div className="text-sm font-medium">{s.name}</div>
+                  <div className="text-sm font-semibold">{s.name}</div>
                   <p className="mt-0.5 text-xs text-muted-foreground">{s.detail}</p>
                 </div>
               </div>
             ))}
 
-            <div className="flex items-start justify-between gap-4 rounded-md border border-dashed p-3">
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-dashed p-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="h-6 shrink-0">
+                  <Badge variant="outline" className="size-6 shrink-0 px-0">
                     6
                   </Badge>
-                  <span className="text-sm font-medium">좌표 (선택)</span>
+                  <span className="text-sm font-semibold">좌표 (선택)</span>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   납품처·기사 도착지 좌표. TMAP 약관상 경로 좌표는 24시간 이상 저장·재사용이

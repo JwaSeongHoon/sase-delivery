@@ -248,3 +248,6 @@ PRD §14에 8건이 정리되어 있습니다. 그중 코드에 직접 영향이
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/ui ·
 zustand · ExcelJS · Anthropic SDK · Vitest
+
+화면은 SASE 디자인 시스템(`docs/sase_design_system.png`)을 따릅니다 — 색 토큰은
+`src/app/globals.css`, 서체는 Pretendard(npm 패키지 자체 서빙, 외부 CDN 없음).

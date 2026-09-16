@@ -209,7 +209,7 @@ function SvgMap({
   const dimmed = (tripId: string) => focusTripId !== null && focusTripId !== tripId;
 
   return (
-    <div ref={wrapRef} className="relative h-[520px] w-full overflow-hidden rounded-lg border bg-card">
+    <div ref={wrapRef} className="relative h-[520px] w-full overflow-hidden rounded-2xl border bg-card shadow-card">
       <svg width={size.w} height={size.h} className="block" role="img" aria-label="배차 지도">
         <defs>
           <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
@@ -293,7 +293,7 @@ function SvgMap({
             width={18}
             height={18}
             rx={3}
-            fill="#0f172a"
+            fill="#1a1a1a"
             stroke="white"
             strokeWidth={2}
             transform={`rotate(45 ${cx} ${cy})`}
@@ -306,7 +306,7 @@ function SvgMap({
 
       {hover && (
         <div
-          className="pointer-events-none absolute left-3 top-3 max-w-xs rounded-md border bg-popover/95 px-3 py-2 shadow-lg backdrop-blur"
+          className="pointer-events-none absolute left-3 top-3 max-w-xs rounded-xl border bg-popover/95 px-3 py-2 shadow-card-hover backdrop-blur"
           role="tooltip"
         >
           <div className="text-sm font-semibold">{hover.label}</div>
@@ -319,7 +319,7 @@ function SvgMap({
           {demoMode ? "Demo Mode — 근사 좌표·점선 경로" : "TMAP 실도로 경로"}
         </Badge>
         {fallbackNote && (
-          <Badge variant="outline" className="max-w-md border-amber-500/50 text-[11px] text-amber-600">
+          <Badge variant="warning" className="max-w-md text-[11px]">
             지도 SDK 미사용 — {fallbackNote}
           </Badge>
         )}
@@ -327,14 +327,14 @@ function SvgMap({
           <button
             type="button"
             onClick={() => onFocusTrip(null)}
-            className="rounded-md border bg-background/90 px-2 py-1 text-[11px] hover:bg-accent"
+            className="rounded-lg border bg-card/95 px-2.5 py-1 text-[11px] font-medium hover:bg-accent hover:text-accent-foreground"
           >
             전체 보기
           </button>
         )}
       </div>
 
-      <div className="absolute bottom-3 right-3 rounded-md border bg-background/90 px-2 py-1 text-[11px] text-muted-foreground">
+      <div className="absolute bottom-3 right-3 rounded-lg border bg-card/95 px-2.5 py-1 text-[11px] text-muted-foreground">
         ◆ 센터 · ● 납품처(방문순서) · ⌂ 기사 도착지
       </div>
     </div>
@@ -363,7 +363,7 @@ function markerIcon(color: string, seq: number, dimmed = false): string {
 
 function centerIcon(): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">
-    <rect x="5" y="5" width="16" height="16" rx="3" fill="#0f172a" stroke="#fff" stroke-width="2"
+    <rect x="5" y="5" width="16" height="16" rx="3" fill="#1a1a1a" stroke="#fff" stroke-width="2"
       transform="rotate(45 13 13)"/>
   </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -498,7 +498,7 @@ function TmapCanvas({
               <b>${escapeHtml(m.label)}</b><br/>${escapeHtml(m.sub)}
             </div>`,
           type: 2,
-          border: "1px solid #cbd5e1",
+          border: "1px solid #d1d5db",
           map,
         });
         onFocusTrip(focusTripId === m.tripId ? null : m.tripId);
@@ -543,7 +543,7 @@ function TmapCanvas({
   }, [loading, markers, paths, homes, center, focusTripId, onFocusTrip, demoMode, clearOverlays]);
 
   return (
-    <div className="relative h-[520px] w-full overflow-hidden rounded-lg border bg-card">
+    <div className="relative h-[520px] w-full overflow-hidden rounded-2xl border bg-card shadow-card">
       <div ref={divRef} className="h-full w-full" aria-label="배차 지도 (TMAP)" />
 
       {loading && (
@@ -562,7 +562,7 @@ function TmapCanvas({
         <button
           type="button"
           onClick={() => onFocusTrip(null)}
-          className="absolute bottom-3 right-3 z-10 rounded-md border bg-background/90 px-2 py-1 text-[11px] hover:bg-accent"
+          className="absolute bottom-3 right-3 z-10 rounded-lg border bg-card/95 px-2.5 py-1 text-[11px] font-medium hover:bg-accent hover:text-accent-foreground"
         >
           전체 보기
         </button>

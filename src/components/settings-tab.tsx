@@ -129,13 +129,13 @@ export function SettingsTab() {
                       type="button"
                       onClick={() => updateSettings({ earlyMode: key })}
                       className={cn(
-                        "rounded-md border px-3 py-2 text-left text-sm transition-colors",
-                        active ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                        "rounded-xl border px-3 py-2 text-left text-sm transition-colors",
+                        active ? "border-primary bg-accent" : "bg-card hover:bg-muted"
                       )}
                     >
                       <div className="flex items-center gap-2 font-medium">
                         {rule.label}
-                        {active && <Badge variant="secondary" className="text-[10px]">선택됨</Badge>}
+                        {active && <Badge className="text-[10px]">선택됨</Badge>}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">{rule.describe}</div>
                     </button>
@@ -143,8 +143,8 @@ export function SettingsTab() {
                 }
               )}
             </div>
-            <Alert>
-              <AlertTriangle className="text-amber-600" />
+            <Alert variant="warning">
+              <AlertTriangle />
               <AlertTitle>기준값 미확정 (OI-2)</AlertTitle>
               <AlertDescription className="text-xs">
                 제약은 <strong>한 기사에게 조기납품 업체를 2곳 이상 배정하지 않는 것</strong>이며,
@@ -158,10 +158,10 @@ export function SettingsTab() {
 
           <div className="space-y-2">
             <Label>2회전 납품 마감 하한 (R-15)</Label>
-            <div className="rounded-md border bg-muted/30 px-3 py-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
+            <div className="rounded-xl border bg-muted/40 px-3.5 py-3">
+              <div className="flex items-center gap-2 text-sm font-semibold">
                 마감 {hhmm(SECOND_TRIP_MIN_DEADLINE)} 이후 업체만
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="brand" className="text-[10px]">
                   확정 규칙
                 </Badge>
               </div>
@@ -178,10 +178,10 @@ export function SettingsTab() {
 
           <div className="space-y-2">
             <Label>대형차 1업체 원칙 (R-17)</Label>
-            <div className="rounded-md border bg-muted/30 px-3 py-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
+            <div className="rounded-xl border bg-muted/40 px-3.5 py-3">
+              <div className="flex items-center gap-2 text-sm font-semibold">
                 {LARGE_VEHICLE_TONNAGE}톤 이상은 회전당 1업체
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="brand" className="text-[10px]">
                   확정 규칙
                 </Badge>
               </div>
@@ -201,10 +201,10 @@ export function SettingsTab() {
 
           <div className="space-y-2">
             <Label>수도권 외 제외 (R-18)</Label>
-            <div className="rounded-md border bg-muted/30 px-3 py-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
+            <div className="rounded-xl border bg-muted/40 px-3.5 py-3">
+              <div className="flex items-center gap-2 text-sm font-semibold">
                 천안 이남(위도 {METRO_SOUTH_LIMIT_LAT})은 지입 배차 제외
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="brand" className="text-[10px]">
                   확정 규칙
                 </Badge>
               </div>
@@ -242,7 +242,7 @@ export function SettingsTab() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <KeyRound className="size-4" /> 키 상태
+                  <KeyRound className="size-4 text-primary" /> 키 상태
                 </CardTitle>
                 <CardDescription>
                   환경변수로만 관리합니다. 값은 화면에 표시하지 않습니다 (NFR-03).
@@ -273,8 +273,8 @@ export function SettingsTab() {
             />
 
             {status && !status.tmapKeyPresent && (
-              <Alert>
-                <AlertTriangle className="text-amber-600" />
+              <Alert variant="warning">
+                <AlertTriangle />
                 <AlertTitle>TMAP 키가 없습니다</AlertTitle>
                 <AlertDescription className="text-xs">
                   Demo Mode로만 실행할 수 있습니다. 프로젝트 루트에 <code>.env.local</code> 파일을
@@ -321,8 +321,8 @@ export function SettingsTab() {
                 />
 
                 {status.usage.running && (
-                  <Alert>
-                    <AlertTriangle className="text-amber-600" />
+                  <Alert variant="warning">
+                    <AlertTriangle />
                     <AlertTitle>배차 실행 중</AlertTitle>
                     <AlertDescription className="text-xs">
                       중복 실행이 서버에서 차단됩니다 (FR-33).
@@ -360,12 +360,12 @@ function ToggleRow({
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="space-y-0.5">
-        <Label htmlFor={id} className="text-sm">
+        <Label htmlFor={id} className="text-sm font-semibold">
           {label}
         </Label>
         <p className="text-xs text-muted-foreground">{description}</p>
         {disabled && disabledNote && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">{disabledNote}</p>
+          <p className="text-xs text-warning">{disabledNote}</p>
         )}
       </div>
       <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
@@ -385,7 +385,7 @@ function KeyRow({
   optional?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md border px-3 py-2">
+    <div className="flex items-start justify-between gap-3 rounded-xl border px-3 py-2.5">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <code className="text-xs font-medium">{name}</code>
@@ -398,7 +398,7 @@ function KeyRow({
         <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>
       </div>
       {present ? (
-        <Badge className="shrink-0 gap-1 bg-emerald-600 hover:bg-emerald-600">
+        <Badge variant="success" className="shrink-0 gap-1">
           <CheckCircle2 className="size-3" /> 설정됨
         </Badge>
       ) : (
@@ -434,7 +434,7 @@ function UsageRow({
       </div>
       <Progress
         value={Math.min(100, ratio * 100)}
-        className={cn("h-1.5", emphasis && ratio > 0.5 && "[&>div]:bg-amber-500")}
+        className={cn("h-1.5", emphasis && ratio > 0.5 && "**:data-[slot=progress-indicator]:bg-brand-yellow")}
       />
       {note && <p className="text-xs text-muted-foreground">{note}</p>}
     </div>
