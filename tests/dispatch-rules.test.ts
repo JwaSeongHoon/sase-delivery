@@ -142,14 +142,16 @@ describe("isLargeVehicle / isSouthOfMetro", () => {
 
 describe("R-17 — 대형차는 회전당 1업체", () => {
   it("주소가 다른 소량 업체를 대형 물량에 얹지 않는다 (원앤원 30박스 회귀)", () => {
-    const big = point("하림충북", 1000, "충북 청주시 청남로 1388-44", 청주, "청주");
-    const small = point("원앤원", 30, "충남 천안시 번영로 725", 천안, "천안");
+    // 실데이터의 `원앤원 30 + 하림충북 1,061`은 둘 다 천안 이남이라 R-18이 먼저 걷어 낸다.
+    // 규칙 자체를 보기 위해 같은 상황을 수도권 좌표로 재현한다.
+    const big = point("대형물류", 1000, "경기도 용인시 처인구 중부대로 1199", 용인);
+    const small = point("소량업체", 30, "경기도 용인시 기흥구 청마로 29-4", { lat: 37.26, lon: 127.15 });
 
     const r = assignDispatch([big, small], [vehicle()], { centerGeo: CENTER });
 
     expect(r.trips).toHaveLength(1);
-    expect(r.trips[0].points.map((p) => p.parsedName.company)).toEqual(["하림충북"]);
-    expect(r.unassigned.map((u) => u.company)).toEqual(["원앤원"]);
+    expect(r.trips[0].points.map((p) => p.parsedName.company)).toEqual(["대형물류"]);
+    expect(r.unassigned.map((u) => u.company)).toEqual(["소량업체"]);
   });
 
   it("주소가 거의 같으면 2업체까지 붙인다", () => {
@@ -196,7 +198,7 @@ describe("R-17 — 대형차는 회전당 1업체", () => {
   });
 });
 
-describe("R-18 — 수도권 우선, 천안 이남은 후순위", () => {
+describe("R-18 — 천안 이남은 지입 배차에서 제외", () => {
   it("북쪽 대안이 있으면 북쪽을 태운다", () => {
     const north = point("용인업체", 700, "경기도 용인시 처인구 중부대로 1199", 용인);
     const south = point("청주업체", 700, "충북 청주시 청남로 1388-44", 청주, "청주");
@@ -208,17 +210,41 @@ describe("R-18 — 수도권 우선, 천안 이남은 후순위", () => {
     expect(r.unassigned.map((u) => u.company)).toEqual(["청주업체"]);
   });
 
-  it("북쪽 대안이 없으면 남쪽이라도 태운다 — 금지가 아니라 후순위다", () => {
+  it("북쪽 대안이 없어도 남쪽은 태우지 않는다 — 후순위가 아니라 제외다", () => {
     const south = point("청주업체", 700, "충북 청주시 청남로 1388-44", 청주, "청주");
 
     const r = assignDispatch([south], [vehicle()], { centerGeo: CENTER });
 
-    expect(r.trips).toHaveLength(1);
-    expect(r.trips[0].points[0].parsedName.company).toBe("청주업체");
+    expect(r.trips).toHaveLength(0);
+    expect(r.unassigned).toHaveLength(1);
+    expect(r.unassigned[0].reason).toBe("수도권외");
+    expect(r.unassigned[0].note).toContain("용차");
+  });
+
+  it("제외한 물량은 버리지 않고 사유와 함께 기타로 넘긴다 (R-12)", () => {
+    const north = point("용인업체", 700, "경기도 용인시 처인구 중부대로 1199", 용인);
+    const south = point("익산업체", 900, "전라북도 익산시 왕궁면 왕궁농공단지길 81", { lat: 35.95, lon: 127.03 }, "익산");
+
+    const r = assignDispatch([north, south], [vehicle()], { centerGeo: CENTER });
+
+    const assigned = r.trips.flatMap((t) => t.points).reduce((s, p) => s + p.boxes, 0);
+    const left = r.unassigned.reduce((s, u) => s + u.boxes, 0);
+    expect(assigned + left).toBe(1600);
     expect(r.issues.some((i) => i.code === "R-18" && i.level === "info")).toBe(true);
   });
 
-  it("소형차 묶음에도 북쪽을 먼저 붙인다", () => {
+  it("남쪽 대형 물량은 분할하지 않고 통째로 제외한다", () => {
+    // 미담 1,373박스 — 10톤 최대 1,200을 넘지만 R-18로 먼저 빠지므로 쪼개지 않는다
+    const south = point("미담", 1373, "전라북도 익산시 왕궁면 왕궁농공단지길 81", { lat: 35.95, lon: 127.03 }, "익산");
+
+    const r = assignDispatch([south], [vehicle()], { centerGeo: CENTER });
+
+    expect(r.unassigned).toHaveLength(1);
+    expect(r.unassigned[0].boxes).toBe(1373);
+    expect(r.unassigned[0].reason).toBe("수도권외");
+  });
+
+  it("소형차 묶음에서도 남쪽은 빠진다", () => {
     const small4 = vehicle({
       id: "V02",
       톤수라벨: "4톤",
@@ -226,18 +252,31 @@ describe("R-18 — 수도권 우선, 천안 이남은 후순위", () => {
       최소수량: 370,
       최대수량: 400,
       최소업체수: 3,
-      최대업체수: 3,
+      최대업체수: 4,
     });
     const pts = [
       point("북1", 150, "경기도 용인시 처인구 중부대로 1199", 용인),
       point("북2", 130, "경기도 용인시 처인구 포곡로 234", { lat: 37.25, lon: 127.22 }),
       point("북3", 110, "경기도 용인시 기흥구 청마로 29-4", { lat: 37.26, lon: 127.15 }),
-      point("남1", 120, "충남 천안시 번영로 725", 천안, "천안"),
+      point("남1", 10, "충남 천안시 번영로 725", 천안, "천안"),
     ];
 
     const r = assignDispatch(pts, [small4], { centerGeo: CENTER });
 
     expect(r.trips).toHaveLength(1);
     expect(r.trips[0].points.map((p) => p.parsedName.company).sort()).toEqual(["북1", "북2", "북3"]);
+    expect(r.unassigned.map((u) => u.reason)).toEqual(["수도권외"]);
+  });
+
+  it("대형차가 통째로 놀면 경고로 알린다", () => {
+    // 수도권에 500박스를 단독으로 채우는 업체가 없는 상황
+    const pts = [point("소량업체", 300, "경기도 용인시 처인구 중부대로 1199", 용인)];
+
+    const r = assignDispatch(pts, [vehicle()], { centerGeo: CENTER });
+
+    expect(r.trips).toHaveLength(0);
+    const warn = r.issues.find((i) => i.level === "warning" && i.code === "R-17");
+    expect(warn).toBeDefined();
+    expect(warn!.message).toContain("공차");
   });
 });

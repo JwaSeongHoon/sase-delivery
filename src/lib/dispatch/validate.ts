@@ -12,6 +12,7 @@ import {
   type EarlyDeliveryMode,
 } from "@/lib/domain/constants";
 import type { DispatchResult, Issue, Trip, Vehicle } from "@/lib/domain/types";
+import { METRO_SOUTH_LIMIT_LAT } from "@/lib/domain/constants";
 import { isLargeVehicle } from "@/lib/dispatch/assign";
 import { siteKey } from "@/lib/structure/delivery-name";
 import { formatWindows, isWithin, latestDeadline, toHHMM } from "@/lib/structure/time-window";
@@ -129,6 +130,20 @@ export function validateDispatch(input: ValidateInput): Issue[] {
         });
       }
       seenPoints.add(stop.pointId);
+
+      /**
+       * R-18 — 천안 이남은 지입 배차에서 제외한다. 배차표에 올라왔다면 위반이다.
+       * 좌표가 없는 건은 애초에 배차 대상이 아니므로(R-13) 판정하지 않는다.
+       */
+      if (stop.geo && stop.geo.lat < METRO_SOUTH_LIMIT_LAT) {
+        violations.push({
+          level: "error",
+          code: "R-18",
+          message: `수도권 외 배차 — 위도 ${stop.geo.lat.toFixed(3)} < ${METRO_SOUTH_LIMIT_LAT} (천안 이남)`,
+          subject: `${label} · ${stop.company}`,
+          detail: stop.address,
+        });
+      }
 
       // R-10 차량 톤수 제약
       const limit = stop.maxTonnage;

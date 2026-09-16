@@ -256,6 +256,7 @@ export type UnassignedReason =
   | "주소미확인"
   | "차량제약"
   | "대형차단독"
+  | "수도권외"
   | "적재하한미달";
 
 export interface Stop {

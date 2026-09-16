@@ -200,22 +200,23 @@ export function SettingsTab() {
           </div>
 
           <div className="space-y-2">
-            <Label>수도권 우선 배차 (R-18)</Label>
+            <Label>수도권 외 제외 (R-18)</Label>
             <div className="rounded-md border bg-muted/30 px-3 py-2">
               <div className="flex items-center gap-2 text-sm font-medium">
-                천안 이남(위도 {METRO_SOUTH_LIMIT_LAT})은 후순위
+                천안 이남(위도 {METRO_SOUTH_LIMIT_LAT})은 지입 배차 제외
                 <Badge variant="secondary" className="text-[10px]">
                   확정 규칙
                 </Badge>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                <strong>금지가 아니라 후순위</strong>입니다. 수도권 물량을 먼저 태우고, 그래도 회전이
-                남으면 남쪽을 싣습니다. 천안 이남 배차는 제약 위반이 아니라 <strong>정보 이슈</strong>로
-                남으므로 「제약 위반」 건수에는 잡히지 않습니다.
+                <strong>후순위가 아니라 제외</strong>입니다. 배차 대상에서 아예 빼고, 사유
+                「수도권외」로 기타에 남겨 <strong>용차 판단으로 넘깁니다</strong>. 초과 물량
+                분할(R-06)보다 먼저 적용하므로 남쪽 대형 건은 쪼개지 않고 한 줄로 남습니다.
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                2026-09-15 실데이터에서 남쪽은 천안·아산·청주·익산 4곳입니다. 대형차가 단독으로 실을 수
-                있는 500박스 이상 업체가 청주·익산뿐이라, 이 데이터에서는 대형차 배차가 바뀌지 않습니다.
+                2026-09-15 실데이터에서 제외 대상은 천안·아산·청주·익산 4곳(2,514박스)입니다.
+                R-17과 겹쳐 <strong>10톤 2대가 공차</strong>가 되며, 그 사실은 검증이슈에 경고로
+                남습니다 — 수도권 최대 단일 업체가 474박스라 10톤 하한 500을 넘지 못합니다.
               </p>
             </div>
           </div>

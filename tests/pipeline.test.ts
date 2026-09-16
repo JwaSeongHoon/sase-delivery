@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { splitOversized } from "@/lib/dispatch/assign";
 import { parseFleet } from "@/lib/parse/fleet";
 import { parseShipment } from "@/lib/parse/shipment";
 import { runPipeline, type RunOutput } from "@/lib/pipeline/run";
@@ -17,12 +18,14 @@ import { siteKey } from "@/lib/structure/delivery-name";
 let out: RunOutput;
 let totalBoxes: number;
 let maxCompanies: number;
+let points: Awaited<ReturnType<typeof parseShipment>>["points"];
 
 beforeAll(async () => {
   const ship = await parseShipment(readFileSync("docs/출고등록현황.xlsx"));
   const fleet = await parseFleet(readFileSync("docs/차량 톤수.xlsx"));
   totalBoxes = ship.totalBoxes;
   maxCompanies = fleet.capacity.maxCompanies;
+  points = ship.points;
 
   out = await runPipeline(ship, fleet, {
     demo: true,
@@ -107,13 +110,25 @@ describe("AC-15 결과 정합성", () => {
 });
 
 describe("R-06 초과 물량 분할 (AC-08)", () => {
-  it("미담 1,373박스가 1,200 + 173으로 쪼개져 양쪽 모두 결과에 남는다", () => {
+  /**
+   * 미담 1,373박스는 10톤 최대수량 1,200을 넘지만, **R-18이 먼저 걷어 낸다**(익산).
+   * 실을 생각이 없는 물량을 쪼개 봐야 기타 시트만 두 줄로 늘어난다 —
+   * 통째로 한 줄에 남겨야 용차 판단이 쉽다.
+   */
+  it("수도권 외 초과 물량은 쪼개지 않고 통째로 기타에 남는다", () => {
     const all = [
       ...out.trips.flatMap((t) => t.stops.map((s) => ({ company: s.company, boxes: s.boxes }))),
       ...out.unassigned.map((u) => ({ company: u.company, boxes: u.boxes })),
     ];
     const mid = all.filter((x) => x.company.startsWith("미담"));
-    expect(mid.map((x) => x.boxes).sort((a, b) => b - a)).toEqual([1200, 173]);
+    expect(mid.map((x) => x.boxes)).toEqual([1373]);
+  });
+
+  it("분할 규칙 자체는 그대로다 — 1,373 → 1,200 + 173", () => {
+    const p = points.find((x) => x.parsedName.company === "미담")!;
+    const { points: split } = splitOversized([p], 1200);
+    expect(split.map((x) => x.boxes)).toEqual([1200, 173]);
+    expect(split.every((x) => x.splitFrom === p.id)).toBe(true);
   });
 });
 
@@ -317,31 +332,40 @@ describe("R-17 대형차 1업체 원칙 — 5톤 이상", () => {
   });
 });
 
-describe("R-18 수도권 우선 — 천안 이남은 후순위", () => {
-  it("천안 이남 배송지가 실린 회전은 남쪽 물량이 회전 전체를 채우는 대형 건뿐이다", () => {
-    // 북쪽 대안이 있는 소형차 회전에 남쪽을 끼워 넣지 않았는지 본다
-    for (const t of out.trips) {
-      const south = t.stops.filter((s) => s.geo && s.geo.lat < METRO_SOUTH_LIMIT_LAT);
-      if (south.length === 0) continue;
-      expect(
-        t.stops.length,
-        `${t.기사명} ${t.tripNo}회전에 남쪽 ${south.map((s) => s.company).join(",")}이 섞였다`
-      ).toBe(south.length);
-    }
-  });
-
-  it("남쪽 배차가 있으면 정보 이슈로 남긴다", () => {
+describe("R-18 천안 이남은 지입 배차에서 제외", () => {
+  it("배차표에 천안 이남 배송지가 하나도 없다", () => {
     const south = out.trips
       .flatMap((t) => t.stops)
       .filter((s) => s.geo && s.geo.lat < METRO_SOUTH_LIMIT_LAT);
-    const issue = out.issues.find((i) => i.code === "R-18");
-    if (south.length > 0) {
-      expect(issue).toBeDefined();
-      expect(issue!.level).toBe("info");
+    expect(south.map((s) => s.company)).toEqual([]);
+  });
+
+  it("익산 미담·청주 하림충북은 사유 「수도권외」로 기타에 남는다", () => {
+    const byCompany = new Map(out.unassigned.map((u) => [u.company, u]));
+    for (const name of ["미담", "하림충북"]) {
+      expect(byCompany.get(name), name).toBeDefined();
+      expect(byCompany.get(name)!.reason, name).toBe("수도권외");
     }
   });
 
-  it("천안 이남은 위반이 아니다 — 제약 위반으로 집계되지 않는다", () => {
+  it("제외한 물량도 총량에 그대로 남는다 (R-12)", () => {
+    expect(out.assignedBoxes + out.unassignedBoxes).toBe(totalBoxes);
+  });
+
+  it("제외 사실을 정보 이슈로 남긴다", () => {
+    const issue = out.issues.find((i) => i.code === "R-18");
+    expect(issue).toBeDefined();
+    expect(issue!.level).toBe("info");
+    expect(issue!.message).toContain("제외");
+  });
+
+  it("R-18 위반이 검증에서 잡히지 않는다", () => {
     expect(out.violations.filter((v) => v.code === "R-18")).toHaveLength(0);
+  });
+
+  it("수도권에 적재 하한을 채울 업체가 없어 대형차가 공차라는 사실을 경고한다", () => {
+    const warn = out.issues.find((i) => i.code === "R-17" && i.level === "warning");
+    expect(warn).toBeDefined();
+    expect(warn!.message).toContain("공차");
   });
 });

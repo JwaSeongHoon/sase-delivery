@@ -23,7 +23,6 @@ import {
   METRO_SOUTH_LIMIT_LAT,
   RELOAD_MINUTES,
   SECOND_TRIP_MIN_DEADLINE,
-  SOUTH_PENALTY_WEIGHT,
   type EarlyDeliveryMode,
 } from "@/lib/domain/constants";
 import type {
@@ -164,7 +163,10 @@ export function isSameSite(a: DeliveryPoint, b: DeliveryPoint): boolean {
   return ka === siteKey(b.cleanAddress || b.address);
 }
 
-/** 천안 이남인지 (R-18) — 좌표가 없으면 판정하지 않는다(북쪽 취급) */
+/**
+ * 천안 이남인지 (R-18) — 지입 배차에서 제외할 대상인지.
+ * 좌표가 없으면 판정하지 않는다(북쪽 취급) — 좌표 없는 건은 R-13이 따로 걷어 낸다.
+ */
 export function isSouthOfMetro(p: DeliveryPoint): boolean {
   return p.geo ? p.geo.lat < METRO_SOUTH_LIMIT_LAT : false;
 }
@@ -288,13 +290,6 @@ function growCluster(
     if (feasible.length === 0) break;
 
     /**
-     * R-18 — 수도권 우선. 북쪽 후보가 하나라도 있으면 남쪽은 쳐다보지 않는다.
-     * 북쪽이 다 떨어졌을 때만 남쪽을 붙인다 (금지가 아니라 후순위).
-     */
-    const northOnly = feasible.filter((c) => !isSouthOfMetro(c));
-    const pickable = northOnly.length > 0 ? northOnly : feasible;
-
-    /**
      * 거리만 보고 붙이면 적재 하한을 못 채운 채 업체 수 상한에 먼저 닿는다.
      * (1톤 차량은 3~5개사로 140~150박스를 맞춰야 한다.)
      * 하한을 아직 못 채웠으면 "남은 자리에 균등 분배했을 때의 목표 크기"에
@@ -307,7 +302,7 @@ function growCluster(
           : boxesNeeded
         : null;
 
-    const byDistance = [...pickable].sort(
+    const byDistance = [...feasible].sort(
       (a, b) =>
         Math.min(...chosen.map((x) => distKm(x.geo!, a.geo!))) -
         Math.min(...chosen.map((x) => distKm(x.geo!, b.geo!)))
@@ -316,11 +311,11 @@ function growCluster(
 
     let ranked = byDistance;
     if (target !== null) {
-      const byFit = [...pickable].sort(
+      const byFit = [...feasible].sort(
         (a, b) => Math.abs(a.boxes - target) - Math.abs(b.boxes - target)
       );
       const fitRank = new Map(byFit.map((c, i) => [c.id, i]));
-      ranked = [...pickable].sort(
+      ranked = [...feasible].sort(
         (a, b) =>
           distanceRank.get(a.id)! + fitRank.get(a.id)! - (distanceRank.get(b.id)! + fitRank.get(b.id)!)
       );
@@ -367,8 +362,6 @@ function growCluster(
  * 1순위는 **적재율**이다. 박스당 주행거리만 보면 10톤 차량이 1,200박스짜리 대형 물량 대신
  * 가까운 소형 묶음(530박스)을 집는다. 소화하지 못한 물량은 그대로 용차 비용이 되므로,
  * 미적재 용량을 가장 무겁게 벌점 매긴다.
- * 여기에 **천안 이남 물량 비중**(R-18)을 같은 스케일로 얹는다 — 북쪽 대안이 있으면 북쪽을
- * 고르고, 대안이 없을 때만 남쪽을 싣는다.
  * 2순위는 박스당 주행거리와 공차 귀가 거리(G3), 3순위는 마감 임박 배송지 포함 여부(§6.1).
  */
 function scoreCluster(
@@ -380,14 +373,7 @@ function scoreCluster(
   const idleCapacity = capacity > 0 ? 1 - boxes / capacity : 1;
   const distanceCost = (sim.driveKm + 1.5 * sim.homeKm) / Math.max(1, boxes);
   const priorityBonus = points.reduce((s, p) => s + priorityOf(p), 0);
-  const southBoxes = points.filter(isSouthOfMetro).reduce((s, p) => s + p.boxes, 0);
-  const southRatio = boxes > 0 ? southBoxes / boxes : 0;
-  return (
-    idleCapacity +
-    SOUTH_PENALTY_WEIGHT * southRatio +
-    0.5 * distanceCost -
-    0.05 * priorityBonus
-  );
+  return idleCapacity + 0.5 * distanceCost - 0.05 * priorityBonus;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -410,8 +396,30 @@ export function assignDispatch(
   const geoMissing = allPoints.filter((p) => !p.geo);
   const geoOk = allPoints.filter((p) => p.geo);
 
+  /**
+   * R-18 — 천안 이남은 **지입 배차 대상에서 아예 뺀다**(현업 확정 2026-09-16 2차).
+   * 조합 탐색에 넣고 점수로 미루는 방식은 북쪽에 대안이 없을 때 그대로 배차돼 버린다.
+   * 여기서 걷어 내야 대형차가 익산·청주로 내려가지 않는다. 물량은 버리지 않고
+   * 사유 「수도권외」로 기타에 남겨 용차 판단으로 넘긴다(R-12).
+   */
+  const southExcluded = geoOk.filter(isSouthOfMetro);
+  const metroPoints = geoOk.filter((p) => !isSouthOfMetro(p));
+
+  if (southExcluded.length > 0) {
+    issues.push({
+      level: "info",
+      code: "R-18",
+      message: `수도권 외(천안 이남) ${southExcluded.length}곳 · ${southExcluded
+        .reduce((s, p) => s + p.boxes, 0)
+        .toLocaleString()}박스를 지입 배차에서 제외했습니다 — 용차 대상입니다`,
+      detail: southExcluded
+        .map((p) => `${p.parsedName.company}(${p.parsedName.region} ${p.boxes.toLocaleString()}박스)`)
+        .join(", "),
+    });
+  }
+
   const maxCapacity = Math.max(...vehicles.map((v) => v.최대수량));
-  const { points: workingPoints, issues: splitIssues } = splitOversized(geoOk, maxCapacity);
+  const { points: workingPoints, issues: splitIssues } = splitOversized(metroPoints, maxCapacity);
   issues.push(...splitIssues);
 
   const earlySet = new Set(
@@ -528,24 +536,24 @@ export function assignDispatch(
   }
 
   /**
-   * R-18 — 천안 이남 배차는 위반이 아니라 후순위다. 몇 박스가 남쪽으로 나갔는지
-   * 담당자가 보고 판단할 수 있게 정보로 남긴다.
+   * 대형차가 통째로 노는 경우를 드러낸다.
+   * R-17(회전당 1업체) + R-18(수도권 외 제외)이 겹치면 수도권에 적재 하한을 단독으로
+   * 채우는 업체가 없어 대형차가 **구조적으로** 공차가 된다.
+   * 조용히 빈 회전으로 두면 담당자가 "차가 왜 안 나갔나"를 알 수 없다.
    */
-  const southTrips = trips.filter((t) => t.points.some(isSouthOfMetro));
-  if (southTrips.length > 0) {
-    const southBoxes = trips
-      .flatMap((t) => t.points)
-      .filter(isSouthOfMetro)
-      .reduce((s, p) => s + p.boxes, 0);
+  const idleLargeVehicles = vehicles.filter(
+    (v) => isLargeVehicle(v) && !trips.some((t) => t.vehicle.id === v.id)
+  );
+  if (idleLargeVehicles.length > 0) {
+    const biggest = workingPoints.reduce((m, p) => Math.max(m, p.boxes), 0);
     issues.push({
-      level: "info",
-      code: "R-18",
-      message: `천안 이남 배차 ${southTrips.length}회전 · ${southBoxes.toLocaleString()}박스 — 수도권 물량을 먼저 태우고 남은 회전에 배정했습니다`,
-      detail: trips
-        .flatMap((t) => t.points)
-        .filter(isSouthOfMetro)
-        .map((p) => `${p.parsedName.company}(${p.parsedName.region})`)
+      level: "warning",
+      code: "R-17",
+      message: `대형차 ${idleLargeVehicles.length}대가 공차입니다 — 수도권에 적재 하한을 단독으로 채우는 업체가 없습니다`,
+      subject: idleLargeVehicles
+        .map((v) => `${v.기사명}(${v.톤수라벨} 하한 ${v.최소수량.toLocaleString()}박스)`)
         .join(", "),
+      detail: `수도권 최대 단일 업체 ${biggest.toLocaleString()}박스`,
     });
   }
 
@@ -559,6 +567,20 @@ export function assignDispatch(
       secondTripMinDeadline,
     })
   );
+
+  // R-18 제외 건 — 사유를 분명히 적어 용차 판단으로 넘긴다
+  for (const p of southExcluded) {
+    unassigned.push({
+      pointId: p.id,
+      company: p.parsedName.company,
+      region: p.parsedName.region,
+      address: p.address,
+      boxes: p.boxes,
+      timeRaw: p.time.columnRaw ?? p.parsedName.conditionText,
+      reason: "수도권외",
+      note: "천안 이남이라 지입 배차에서 제외했습니다 — 용차 대상입니다 (R-18)",
+    });
+  }
 
   for (const p of geoMissing) {
     unassigned.push({
@@ -685,10 +707,31 @@ function diagnose(
     return true;
   });
 
+  /**
+   * R-17로 막히는 빈 회전을 걷어 낸다 — 대형차는 1업체가 원칙이라
+   * 적재 하한에 못 미치는 물량을 다른 업체에 얹어 채울 수 없다.
+   */
+  const usableIdle = fitIdle.filter(
+    (s) => !(isLargeVehicle(s.vehicle) && p.boxes < s.vehicle.최소수량)
+  );
+
   if (!blockedByCompanyCap && fitIdle.length > 0) {
-    // R-15 — 빈 회전이 전부 2회전 이상인데 마감이 하한보다 이르다
+    // R-17 — 빈 회전이 있긴 한데 전부 대형차라 단독으로 하한을 못 채운다
+    if (usableIdle.length === 0) {
+      const floor = Math.min(...fitIdle.map((s) => s.vehicle.최소수량));
+      return {
+        ...base,
+        reason: "대형차단독",
+        note:
+          `남은 회전이 대형차뿐입니다. 대형차는 회전당 1업체가 원칙이라 ` +
+          `적재 하한 ${floor.toLocaleString()}박스에 못 미치는 ${p.boxes.toLocaleString()}박스를 ` +
+          `단독으로 실을 수 없습니다 (R-17)${splitNote}`,
+      };
+    }
+
+    // R-15 — 쓸 수 있는 빈 회전이 전부 2회전 이상인데 마감이 하한보다 이르다
     if (
-      fitIdle.every((s) => s.tripNo > 1) &&
+      usableIdle.every((s) => s.tripNo > 1) &&
       !allowedOnSecondTrip(p, ctx.secondTripMinDeadline)
     ) {
       const floor = `${String(Math.floor(ctx.secondTripMinDeadline / 60)).padStart(2, "0")}:${String(
@@ -698,22 +741,6 @@ function diagnose(
         ...base,
         reason: "시간창불가",
         note: `마감이 ${floor}보다 일러 2회전(센터 복귀 후 재출발)에 배정할 수 없고, 1회전은 모두 찼습니다${splitNote}`,
-      };
-    }
-
-    /**
-     * R-17 — 빈 회전이 전부 대형차인데 단독으로 적재 하한을 못 채운다.
-     * 대형차는 1업체가 원칙이라 소량을 다른 업체에 얹어 채울 수 없다.
-     */
-    if (fitIdle.every((s) => isLargeVehicle(s.vehicle) && p.boxes < s.vehicle.최소수량)) {
-      const floor = Math.min(...fitIdle.map((s) => s.vehicle.최소수량));
-      return {
-        ...base,
-        reason: "대형차단독",
-        note:
-          `남은 회전이 대형차뿐입니다. 대형차는 회전당 1업체가 원칙이라 ` +
-          `적재 하한 ${floor.toLocaleString()}박스에 못 미치는 ${p.boxes.toLocaleString()}박스를 ` +
-          `단독으로 실을 수 없습니다 (R-17)${splitNote}`,
       };
     }
   }
